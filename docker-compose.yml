@@ -1,0 +1,165 @@
+version: '3.8'
+
+services:
+
+  # API GATEWAY
+  gateway:
+    build:
+      context: ./gateway
+      dockerfile: Dockerfile
+    container_name: tiket_gateway
+    ports:
+      - "8000:4000"
+    environment:
+      - AUTH_SERVICE_URL=http://auth-service:3000
+      - EVENT_SERVICE_URL=http://event-service:8080
+      - TICKET_SERVICE_URL=http://ticket-service:3000
+      - JWT_SECRET=${JWT_SECRET}
+      - PORT=4000
+    depends_on:
+      - auth-service
+      - event-service
+      - ticket-service
+    networks:
+      - tiket_network
+    restart: unless-stopped
+
+  # AUTH SERVICE 
+  auth-service:
+    build:
+      context: ./services/auth-service
+      dockerfile: Dockerfile
+    container_name: tiket_auth
+    ports:
+      - "8001:3000"
+    environment:
+      - DB_HOST=auth-db
+      - DB_PORT=3306
+      - DB_NAME=auth_db
+      - DB_USER=auth_user
+      - DB_PASS=${AUTH_DB_PASS}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_ACCESS_TTL=900
+      - JWT_REFRESH_TTL=604800
+      - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
+      - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}
+      - GITHUB_CALLBACK_URL=${GITHUB_CALLBACK_URL}
+      - PORT=3000
+    depends_on:
+      auth-db:
+        condition: service_healthy
+    networks:
+      - tiket_network
+    restart: unless-stopped
+
+  auth-db:
+    image: mysql:8.0
+    container_name: tiket_auth_db
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass_auth
+      MYSQL_DATABASE: auth_db
+      MYSQL_USER: auth_user
+      MYSQL_PASSWORD: ${AUTH_DB_PASS}
+    volumes:
+      - auth_db_data:/var/lib/mysql
+      - ./services/auth-service/database/migrations.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+    networks:
+      - tiket_network
+
+  # EVENT SERVICE
+  event-service:
+    build:
+      context: ./services/event-service
+      dockerfile: Dockerfile
+    container_name: tiket_event
+    ports:
+      - "8002:8080"
+    environment:
+      - DB_HOST=event-db
+      - DB_PORT=3306
+      - DB_NAME=event_db
+      - DB_USER=event_user
+      - DB_PASS=${EVENT_DB_PASS}
+      - JWT_SECRET=${JWT_SECRET}
+      - AUTH_SERVICE_URL=http://auth-service:3000
+      - CI_ENVIRONMENT=development
+    depends_on:
+      event-db:
+        condition: service_healthy
+    networks:
+      - tiket_network
+    restart: unless-stopped
+
+  event-db:
+    image: mysql:8.0
+    container_name: tiket_event_db
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass_event
+      MYSQL_DATABASE: event_db
+      MYSQL_USER: event_user
+      MYSQL_PASSWORD: ${EVENT_DB_PASS}
+    volumes:
+      - event_db_data:/var/lib/mysql
+      - ./services/event-service/database/migrations.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+    networks:
+      - tiket_network
+
+  # TICKET SERVICE 
+  ticket-service:
+    build:
+      context: ./services/ticket-service
+      dockerfile: Dockerfile
+    container_name: tiket_ticket
+    ports:
+      - "8003:3000"
+    environment:
+      - DB_HOST=ticket-db
+      - DB_PORT=3306
+      - DB_NAME=ticket_db
+      - DB_USER=ticket_user
+      - DB_PASS=${TICKET_DB_PASS}
+      - JWT_SECRET=${JWT_SECRET}
+      - AUTH_SERVICE_URL=http://auth-service:3000
+      - EVENT_SERVICE_URL=http://event-service:8080
+      - PORT=3000
+    depends_on:
+      ticket-db:
+        condition: service_healthy
+    networks:
+      - tiket_network
+    restart: unless-stopped
+
+  ticket-db:
+    image: mysql:8.0
+    container_name: tiket_ticket_db
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass_ticket
+      MYSQL_DATABASE: ticket_db
+      MYSQL_USER: ticket_user
+      MYSQL_PASSWORD: ${TICKET_DB_PASS}
+    volumes:
+      - ticket_db_data:/var/lib/mysql
+      - ./services/ticket-service/database/migrations.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+    networks:
+      - tiket_network
+
+networks:
+  tiket_network:
+    driver: bridge
+
+volumes:
+  auth_db_data:
+  event_db_data:
+  ticket_db_data:
