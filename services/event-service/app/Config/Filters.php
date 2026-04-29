@@ -66,7 +66,6 @@ class Filters extends BaseFilters
         'honeypot' => \CodeIgniter\Filters\Honeypot::class,
         'invalidchars' => \CodeIgniter\Filters\InvalidChars::class,
         'secureheaders' => \CodeIgniter\Filters\SecureHeaders::class,
-        // Tambahkan baris ini:
         'jwt'      => \App\Filters\JwtFilter::class,
     ];
 

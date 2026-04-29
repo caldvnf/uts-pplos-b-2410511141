@@ -11,7 +11,6 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
 WORKDIR /var/www/html
 
-# Copy semua file project
 COPY . .
 
 RUN composer install --no-dev --optimize-autoloader
