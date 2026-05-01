@@ -49,4 +49,4 @@ CREATE TABLE IF NOT EXISTS token_blacklist (
 
 -- insert admin default 
 INSERT IGNORE INTO users (nama, email, password, role)
-VALUES ('Admin', 'admin@tiket.com', 'pswaddmin123', 'admin');
+VALUES ('Admin', 'admin@tiket.com', 'password', 'admin');
