@@ -1,14 +1,13 @@
+require('dotenv').config();
 const express = require('express');
 const { createProxyMiddleware } = require('http-proxy-middleware');
-const rateLimiter = require('./middleware/rateLimiter');
+const rateLimiter    = require('./middleware/rateLimiter');
 const authMiddleware = require('./middleware/authMiddleware');
 
-const app = express();
+const app  = express();
 const PORT = process.env.PORT || 4000;
 
-// middleware global
-app.use(express.json());
-
+// CORS
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
@@ -17,16 +16,15 @@ app.use((req, res, next) => {
   next();
 });
 
+// Rate limiting
 app.use(rateLimiter);
 
+// Health check
 app.get('/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    service: 'gateway',
-    timestamp: new Date(),
-  });
+  res.json({ status: 'ok', service: 'gateway', timestamp: new Date() });
 });
 
+// Public paths
 const publicPaths = [
   '/api/auth/register',
   '/api/auth/login',
@@ -35,70 +33,55 @@ const publicPaths = [
   '/api/auth/oauth/github/callback',
 ];
 
-// yg wajib pake jwt
 app.use((req, res, next) => {
   const isPublic = publicPaths.some(path => req.path.startsWith(path));
   if (isPublic) return next();
   return authMiddleware(req, res, next);
 });
 
-// auth-service 
-app.use('/api/auth', createProxyMiddleware({
-  target: process.env.AUTH_SERVICE_URL || 'http://auth-service:3000',
+// Konfigurasi proxy — tanpa express.json() supaya body tidak dikonsumsi
+const proxyOptions = (target) => ({
+  target,
   changeOrigin: true,
-  pathRewrite: { '^/api/auth': '' },
+  selfHandleResponse: false,
+  proxyTimeout: 60000,
+  timeout: 60000,
   on: {
     error: (err, req, res) => {
-      res.status(502).json({
-        status: 'error',
-        message: 'Auth service tidak tersedia',
-      });
+      console.error('[Proxy Error]', err.message);
+      if (!res.headersSent) {
+        res.status(502).json({ status: 'error', message: 'Service tidak tersedia' });
+      }
     },
   },
+});
+
+// Routing
+app.use('/api/auth', createProxyMiddleware({
+  ...proxyOptions(process.env.AUTH_SERVICE_URL || 'http://auth-service:3000'),
+  pathRewrite: { '^/api/auth': '' },
 }));
 
-// auth-service (users)
 app.use('/api/users', createProxyMiddleware({
-  target: process.env.AUTH_SERVICE_URL || 'http://auth-service:3000',
-  changeOrigin: true,
+  ...proxyOptions(process.env.AUTH_SERVICE_URL || 'http://auth-service:3000'),
   pathRewrite: { '^/api/users': '/users' },
 }));
 
-// event-service 
 app.use('/api/events', createProxyMiddleware({
-  target: process.env.EVENT_SERVICE_URL || 'http://event-service:8080',
-  changeOrigin: true,
+  ...proxyOptions(process.env.EVENT_SERVICE_URL || 'http://event-service:8080'),
   pathRewrite: { '^/api/events': '/events' },
-  on: {
-    error: (err, req, res) => {
-      res.status(502).json({
-        status: 'error',
-        message: 'Event service tidak tersedia',
-      });
-    },
-  },
 }));
 
-// ticket-service 
 app.use('/api/tickets', createProxyMiddleware({
-  target: process.env.TICKET_SERVICE_URL || 'http://ticket-service:3000',
-  changeOrigin: true,
+  ...proxyOptions(process.env.TICKET_SERVICE_URL || 'http://ticket-service:3000'),
   pathRewrite: { '^/api/tickets': '/tickets' },
-  on: {
-    error: (err, req, res) => {
-      res.status(502).json({
-        status: 'error',
-        message: 'Ticket service tidak tersedia',
-      });
-    },
-  },
 }));
 
-// 404 klo route gk dikenal
+// 404
 app.use((req, res) => {
   res.status(404).json({
     status: 'error',
-    message: `Route ${req.path} tidak ditemukan di gateway`,
+    message: `Route ${req.path} tidak ditemukan`,
   });
 });
 

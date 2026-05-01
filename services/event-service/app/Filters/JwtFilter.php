@@ -13,32 +13,36 @@ class JwtFilter implements FilterInterface
     public function before(RequestInterface $request, $arguments = null)
     {
         $authHeader = $request->getHeaderLine('Authorization');
-        $token      = null;
+        $token = null;
 
-        if (str_starts_with($authHeader, 'Bearer ')) {
+        if (!empty($authHeader) && str_starts_with($authHeader, 'Bearer ')) {
             $token = substr($authHeader, 7);
         }
-
 
         $userIdFromGateway = $request->getHeaderLine('X-User-Id');
 
         if (!$token && !$userIdFromGateway) {
-            return response()->setStatusCode(401)->setJSON([
+            return service('response')->setStatusCode(401)->setJSON([
                 'status'  => 'error',
                 'message' => 'Token tidak ditemukan',
             ]);
         }
 
         if ($userIdFromGateway) {
-            return; 
+            return;
         }
 
         try {
-            $secret  = env('JWT_SECRET');
+            $secret = getenv('JWT_SECRET');
+            if (!$secret) {
+                throw new \Exception('JWT_SECRET tidak ditemukan');
+            }
+
             $decoded = JWT::decode($token, new Key($secret, 'HS256'));
-            $request->decoded_user = $decoded;
+            $request->user = $decoded;
+
         } catch (\Exception $e) {
-            return response()->setStatusCode(401)->setJSON([
+            return service('response')->setStatusCode(401)->setJSON([
                 'status'  => 'error',
                 'message' => 'Token tidak valid: ' . $e->getMessage(),
             ]);

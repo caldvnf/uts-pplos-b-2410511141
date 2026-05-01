@@ -45,9 +45,8 @@ CREATE TABLE IF NOT EXISTS token_blacklist (
   token       TEXT NOT NULL,
   expired_at  TIMESTAMP NOT NULL,
   dibuat_pada TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+);s
 
 -- insert admin default 
 INSERT IGNORE INTO users (nama, email, password, role)
-VALUES ('Admin', 'admin@tiket.com', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin');
--- password default: password
+VALUES ('Admin', 'admin@tiket.com', 'pswaddmin123', 'admin');
